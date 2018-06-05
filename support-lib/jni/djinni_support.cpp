@@ -20,6 +20,7 @@
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
+#include "AndroidLogging.h"
 
 static_assert(sizeof(jlong) >= sizeof(void*), "must be able to fit a void* into a jlong");
 
@@ -28,16 +29,14 @@ namespace djinni {
 // Set only once from JNI_OnLoad before any other JNI calls, so no lock needed.
 static JavaVM * g_cachedJVM;
 
-static pthread_key_t threadExitCallbackKey;
-
-void onThreadExit(void*)
+void detachThreadOnExit()
 {
-    g_cachedJVM->DetachCurrentThread();
-}
-
-void createThreadDetachCallbackKey()
-{
-    pthread_key_create(&threadExitCallbackKey, onThreadExit);
+    thread_local struct OnExit {
+        ~OnExit() {
+            LOGI("Detaching THREAD from jni");
+            g_cachedJVM->DetachCurrentThread();
+        }
+    } onExit;
 }
 
 /*static*/
@@ -65,7 +64,6 @@ JniClassInitializer::JniClassInitializer(std::function<void()> init) {
 
 void jniInit(JavaVM * jvm) {
     g_cachedJVM = jvm;
-    createThreadDetachCallbackKey();
 
     try {
         for (const auto & initializer : JniClassInitializer::get_all()) {
@@ -89,7 +87,7 @@ JNIEnv * jniGetThreadEnv() {
 
     if (get_res == JNI_EDETACHED) {
         get_res = g_cachedJVM->AttachCurrentThread(&env, nullptr);
-        pthread_setspecific(threadExitCallbackKey, env);
+        detachThreadOnExit();
     }
 
     if (get_res != JNI_OK || !env) {
