@@ -20,7 +20,6 @@
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
-#include "AndroidLogging.h"
 
 static_assert(sizeof(jlong) >= sizeof(void*), "must be able to fit a void* into a jlong");
 
@@ -33,7 +32,6 @@ void detachThreadOnExit()
 {
     thread_local struct OnExit {
         ~OnExit() {
-            LOGI("Detaching THREAD from jni");
             g_cachedJVM->DetachCurrentThread();
         }
     } onExit;
