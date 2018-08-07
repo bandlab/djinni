@@ -28,14 +28,41 @@ namespace djinni {
 // Set only once from JNI_OnLoad before any other JNI calls, so no lock needed.
 static JavaVM * g_cachedJVM;
 
-void detachThreadOnExit()
-{
-    thread_local struct OnExit {
-        ~OnExit() {
-            g_cachedJVM->DetachCurrentThread();
+#ifdef __ANDROID__
+
+    // On Android, thread_local doesn't work reliably across devices / os versions, but pthread keys destructors do.
+    // See also: https://developer.android.com/training/articles/perf-jni#threads
+
+    void onThreadExit(void*) {
+        g_cachedJVM->DetachCurrentThread();
+    }
+
+    void detachThreadOnExit() {
+
+        static pthread_key_t threadExitCallbackKey = 0;
+
+        if (threadExitCallbackKey == 0) {
+            pthread_key_create(&threadExitCallbackKey, onThreadExit);
         }
-    } onExit;
-}
+
+        pthread_setspecific(threadExitCallbackKey, (void*) 1);
+        // NB: since g_cachedJVM is global, we don't need to pass a user context to pthread_setspecific().
+        // Still, we pass a dummy "1" value to ensure the key is created
+    }
+
+#else
+
+    // For all other platforms, the thread_local method will work fine:
+
+    void detachThreadOnExit() {
+        thread_local struct OnExit {
+            ~OnExit() {
+                g_cachedJVM->DetachCurrentThread();
+            }
+        } onExit;
+    }
+
+#endif
 
 /*static*/
 JniClassInitializer::registration_vec & JniClassInitializer::get_vec() {
