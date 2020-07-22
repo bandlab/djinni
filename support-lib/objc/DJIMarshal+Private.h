@@ -29,7 +29,7 @@ struct Bool {
 
     struct Boxed {
         using ObjcType = NSNumber*;
-        static CppType toCpp(ObjcType x) noexcept { assert(x); return Bool::toCpp([x boolValue]); }
+        static CppType toCpp(ObjcType x) noexcept { assert(x != nil); return Bool::toCpp([x boolValue]); }
         static ObjcType fromCpp(CppType x) noexcept { return [NSNumber numberWithBool:Bool::fromCpp(x)]; }
     };
 };
@@ -44,7 +44,7 @@ struct Primitive {
 
     struct Boxed {
         using ObjcType = NSNumber*;
-        static CppType toCpp(ObjcType x) noexcept { assert(x); return static_cast<CppType>(Self::unbox(x)); }
+        static CppType toCpp(ObjcType x) noexcept { assert(x != nil); return static_cast<CppType>(Self::unbox(x)); }
         static ObjcType fromCpp(CppType x) noexcept { return Self::box(x); }
     };
 };
@@ -276,7 +276,7 @@ public:
     static ObjcType fromCpp(const CppType& v) {
         assert(v.size() <= std::numeric_limits<NSUInteger>::max());
         auto array = [NSMutableArray arrayWithCapacity:static_cast<NSUInteger>(v.size())];
-        for(const auto& value : v) {
+        for(auto value : v) {
             [array addObject:T::Boxed::fromCpp(value)];
         }
         return [array copy];
